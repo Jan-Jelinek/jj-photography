@@ -1,0 +1,754 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import { CHARS_PER_LINE, LINES_PER_PAGE, MAX_NOTE_LINES, PAGES, scribble, signatureOf, stampOf, wrap } from "../lib/guestbook";
+
+// Design only for now: the entries are placeholders and signing only happens in your browser.
+type Entry = { page: number; line: number; name: string; country: string; note: string; date: string; pending?: boolean };
+const entries: Entry[] = [
+  { page: 1, line: 0, name: "Mia", country: "NO", note: "The Svalbard set made me homesick in the best way. You got the light exactly right.", date: "2026-11-18" },
+  { page: 1, line: 5, name: "Kenji", country: "JP", note: "Come back to Tokyo in winter, the city is even better at night.", date: "2026-11-15" },
+  { page: 1, line: 10, name: "Tomás", country: "CZ", note: "Ahoj z Brna!", date: "2026-11-09" },
+  { page: 1, line: 16, name: "Priya", country: "IN", note: "That cat sleeping in the box deserves its own collection.", date: "2026-11-02" },
+  { page: 2, line: 2, name: "Lin", country: "TW", note: "Qixing in the fog is my favourite hike in the world and you made it look like a dream. Thank you for visiting!", date: "2026-10-27" },
+  { page: 2, line: 11, name: "Someone", country: "FR", note: "Waiting for approval, so this shows up as scribbles.", date: "2026-11-20", pending: true },
+  { page: 2, line: 19, name: "Sam", country: "CA", note: "hi from calgary", date: "2026-10-20" },
+  { page: 3, line: 6, name: "Elena", country: "ES", note: "Sandpaper prints when? I'll take two.", date: "2026-10-14" },
+  { page: 3, line: 14, name: "Ahmed", country: "EG", note: "Your photos feel like early mornings before anyone else is awake.", date: "2026-10-03" },
+  { page: 4, line: 1, name: "Someone", country: "DE", note: "Another one waiting for approval.", date: "2026-11-21", pending: true },
+  { page: 8, line: 22, name: "Noor", country: "AE", note: "Skipped to the last lines.", date: "2026-09-30" },
+];
+
+const countryName = new Intl.DisplayNames(["en"], { type: "region" });
+// A short list for the mockup; the real one gets every country, starting on the visitor's own.
+const options = ["AE", "CA", "CZ", "DE", "EG", "ES", "FR", "GB", "IN", "JP", "KR", "NO", "TW", "US"]
+  .map((code) => ({ code, name: countryName.of(code)! }))
+  .sort((a, b) => a.name.localeCompare(b.name));
+
+const FONTS = 3; // handwriting fonts, see .hand-0 … .hand-2
+const INKS = 3; // ink colors, see --ink-0 … --ink-2
+// Same visitor-independent pick for an entry every time (the real one stores it with the entry).
+const pick = (seed: number, n: number) => ((seed * 2654435761) >>> 0) % n;
+
+type Slot =
+  | { kind: "free" }
+  | { kind: "note"; text: string; font: number; ink: number }
+  | { kind: "sig"; text: string; stamp: string; font: number; ink: number }
+  | { kind: "pending"; chars: number; seed: number; ink: number };
+const pages: Slot[][] = Array.from({ length: PAGES }, () => Array.from({ length: LINES_PER_PAGE }, () => ({ kind: "free" }) as Slot));
+for (const e of entries) {
+  const seed = e.page * 100 + e.line;
+  const [font, ink] = [pick(seed, FONTS), pick(seed, INKS)];
+  const texts = [...wrap(e.note).slice(0, MAX_NOTE_LINES), signatureOf(e.name, countryName.of(e.country))];
+  texts.forEach((text, i) => {
+    const last = i === texts.length - 1;
+    pages[e.page - 1][e.line + i] = e.pending
+      ? { kind: "pending", chars: text.length, seed: seed * 10 + i, ink }
+      : last
+        ? { kind: "sig", text, stamp: stampOf(e.date), font, ink }
+        : { kind: "note", text, font, ink };
+  });
+}
+const linesLeft = pages.flat().filter((s) => s.kind === "free").length;
+const signed = entries.filter((e) => !e.pending);
+---
+
+<BaseLayout title="Guestbook — Jan Jelinek Photography" current="guestbook">
+  <link
+    slot="head"
+    rel="stylesheet"
+    href="https://fonts.googleapis.com/css2?family=Caveat:wght@500&family=IBM+Plex+Mono&family=Kalam&family=Nanum+Pen+Script&display=swap"
+  />
+
+  <section class="site-container flex flex-col gap-10 pt-10 pb-16 sm:pt-14 sm:pb-[72px]">
+    <div class="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
+      <div class="flex flex-col gap-4">
+        <span class="text-[13px] tracking-[0.08em] text-dim uppercase">Guestbook</span>
+        <h1 class="font-display text-[clamp(44px,5.5vw,51px)] leading-[0.98] font-light tracking-[-0.02em] text-strong">
+          Thanks for stopping by!
+        </h1>
+        <p class="max-w-[440px] text-[17px] leading-[1.65] text-pretty text-muted">
+          You can leave a little note here if you'd like.
+        </p>
+      </div>
+      <dl class="grid grid-cols-3 gap-8 text-sm lg:min-w-[380px]">
+        <div class="flex flex-col gap-1.5">
+          <dt class="text-[11px] tracking-[0.08em] text-dim uppercase">Signatures</dt>
+          <dd class="font-display text-[32px] leading-none font-light text-strong tabular-nums">{signed.length}</dd>
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <dt class="text-[11px] tracking-[0.08em] text-dim uppercase">Countries</dt>
+          <dd class="font-display text-[32px] leading-none font-light text-strong tabular-nums">{new Set(signed.map((e) => e.country)).size}</dd>
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <dt class="text-[11px] tracking-[0.08em] text-dim uppercase">Lines left</dt>
+          <dd id="lines-left" class="font-display text-[32px] leading-none font-light text-strong tabular-nums">{linesLeft}</dd>
+        </div>
+      </dl>
+    </div>
+
+    <!-- The book: every page is rendered; the script shows two (one on phones) at a time. -->
+    <div class="flex flex-col gap-5">
+      <div class="gb-book" data-pages={PAGES}>
+        <div class="gb-spread">
+          {pages.map((slots, p) => (
+            <div class="gb-page" data-page={p + 1} hidden={p > 1}>
+              {slots.map((slot, l) => (
+                slot.kind === "free" ? (
+                  <button type="button" class="gb-line gb-free" data-page={p + 1} data-line={l} aria-label={`Write on page ${p + 1}, line ${l + 1}`} style={`--l: ${l}`}>
+                    <span class="gb-hint">sign here</span>
+                  </button>
+                ) : slot.kind === "note" ? (
+                  <div class:list={["gb-line", `hand-${slot.font}`]} data-page={p + 1} data-line={l} style={`--l: ${l}; --ink: var(--ink-${slot.ink})`}>
+                    <span>{slot.text}</span>
+                  </div>
+                ) : slot.kind === "sig" ? (
+                  <div class:list={["gb-line", `hand-${slot.font}`]} data-page={p + 1} data-line={l} style={`--l: ${l}; --ink: var(--ink-${slot.ink})`}>
+                    <span class="gb-sig">{slot.text}</span>
+                    <span class="gb-stamp">{slot.stamp}</span>
+                  </div>
+                ) : (
+                  <div class="gb-line" data-page={p + 1} data-line={l} style={`--l: ${l}; --ink: var(--ink-${slot.ink})`} title="Waiting for approval">
+                    <svg class="gb-scribble" viewBox={`0 0 ${CHARS_PER_LINE * 9} 26`} preserveAspectRatio="xMinYMid meet" aria-label="A note waiting for approval">
+                      <path d={scribble(slot.chars, slot.seed)} />
+                    </svg>
+                  </div>
+                )
+              ))}
+              <span class="gb-folio">{p + 1}</span>
+            </div>
+          ))}
+        </div>
+
+        <!-- The composing box. The script moves it onto the lines being written on: note rows on top,
+             the signature row (name, country, date) at the bottom, sign / cancel just outside. -->
+        <form id="gb-compose" class="gb-compose" hidden>
+          <!-- The note is typed here (never seen); the rows show it as handwriting. 16px stops iPhones zooming in. -->
+          <textarea id="gb-note" class="gb-note" aria-label="Your note" autocomplete="off" spellcheck="false"></textarea>
+          <div id="gb-rows"></div>
+          <div class="gb-row gb-sigrow">
+            <span class="gb-sigline">
+              <span aria-hidden="true">—&nbsp;</span>
+              <span class="gb-auto">
+                <span class="gb-mirror" aria-hidden="true">your name</span>
+                <input id="gb-name" name="name" type="text" maxlength="20" placeholder="your name" aria-label="Your name" autocomplete="given-name" enterkeyhint="send" />
+              </span>
+              <span aria-hidden="true">,&nbsp;</span>
+              <span class="gb-auto">
+                <span class="gb-mirror" aria-hidden="true">country</span>
+                <select id="gb-country" name="country" aria-label="Your country">
+                  <option value="">country</option>
+                  {options.map((o) => <option value={o.code}>{o.name}</option>)}
+                </select>
+              </span>
+            </span>
+            <span class="gb-stamp" id="gb-today"></span>
+          </div>
+          <div class="gb-actions">
+            <span class="gb-actions-hint" id="gb-hint">Up to {MAX_NOTE_LINES} lines · Enter to sign · Esc to cancel</span>
+            <button type="button" id="gb-cancel" class="gb-cancel">Cancel</button>
+            <button type="submit" id="gb-sign" class="gb-sign">Sign</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="flex items-center justify-between gap-4">
+        <div class="flex gap-2 sm:gap-4">
+          <button id="gb-first" type="button" class="gb-nav" aria-label="First pages">« First</button>
+          <button id="gb-prev" type="button" class="gb-nav" aria-label="Previous pages">← Back</button>
+        </div>
+        <span id="gb-where" class="text-[13px] text-dim tabular-nums">Pages 1–2 of {PAGES}</span>
+        <div class="flex gap-2 sm:gap-4">
+          <button id="gb-next" type="button" class="gb-nav" aria-label="Next pages">Next →</button>
+          <button id="gb-last" type="button" class="gb-nav" aria-label="Last pages">Last »</button>
+        </div>
+      </div>
+
+      <p id="gb-signed" class="text-[13px] text-muted" hidden>
+        Thanks for signing! Your note shows up once I've read it.
+        <button id="gb-undo" type="button" class="ml-2 text-dim underline underline-offset-4 hover:text-strong">(mockup: sign again)</button>
+      </p>
+    </div>
+  </section>
+</BaseLayout>
+
+<script>
+  import { CHARS_PER_LINE, LINES_PER_PAGE, MAX_LINES, roomAt, scribble, signatureOf, stampOf, wrap } from "../lib/guestbook";
+
+  const $ = <T extends HTMLElement>(sel: string) => document.querySelector<T>(sel)!;
+  const book = $(".gb-book");
+  const pages = [...book.querySelectorAll<HTMLElement>(".gb-page")];
+  const compose = $<HTMLFormElement>("#gb-compose");
+  const note = $<HTMLTextAreaElement>("#gb-note");
+  const rows = $("#gb-rows");
+  const nameField = $<HTMLInputElement>("#gb-name");
+  const countryField = $<HTMLSelectElement>("#gb-country");
+  const signButton = $<HTMLButtonElement>("#gb-sign");
+  const hint = $("#gb-hint");
+  const signedNote = $("#gb-signed");
+  const where = $("#gb-where");
+  const countryName = new Intl.DisplayNames(["en"], { type: "region" });
+  const SIGNED_KEY = "guestbook-signed";
+
+  // iPhones zoom in on inputs with text under 16px (the handwriting is smaller). maximum-scale stops
+  // that; iOS still lets people pinch-zoom the page.
+  if (/iPhone|iPad|iPod/.test(navigator.userAgent)) {
+    document.querySelector('meta[name="viewport"]')?.setAttribute("content", "width=device-width, maximum-scale=1");
+  }
+
+  // --- Flipping: two pages side by side, one on phones. ---
+  const single = matchMedia("(width < 48rem)");
+  let first = 0; // index of the leftmost page shown
+  const perView = () => (single.matches ? 1 : 2);
+  function show() {
+    first -= first % perView();
+    pages.forEach((page, i) => (page.hidden = i < first || i >= first + perView()));
+    const last = Math.min(first + perView(), pages.length);
+    where.textContent = perView() === 1 ? `Page ${first + 1} of ${pages.length}` : `Pages ${first + 1}–${last} of ${pages.length}`;
+    const atStart = first === 0;
+    const atEnd = first + perView() >= pages.length;
+    $<HTMLButtonElement>("#gb-first").disabled = $<HTMLButtonElement>("#gb-prev").disabled = atStart;
+    $<HTMLButtonElement>("#gb-next").disabled = $<HTMLButtonElement>("#gb-last").disabled = atEnd;
+  }
+  const flip = (dir: number) => {
+    if (claim) return; // finish or cancel writing first
+    first = Math.max(0, Math.min(pages.length - perView(), first + dir * perView()));
+    show();
+  };
+  $("#gb-prev").addEventListener("click", () => flip(-1));
+  $("#gb-next").addEventListener("click", () => flip(1));
+  $("#gb-first").addEventListener("click", () => flip(-pages.length));
+  $("#gb-last").addEventListener("click", () => flip(pages.length));
+  single.addEventListener("change", () => {
+    if (claim) first = claim.page - 1;
+    show();
+  });
+  document.addEventListener("keydown", (e) => {
+    if ((e.target as HTMLElement).closest("input, textarea, select")) return;
+    if (e.key === "ArrowLeft") flip(-1);
+    if (e.key === "ArrowRight") flip(1);
+  });
+
+  // --- Lines ---
+  const lineEl = (page: number, line: number) =>
+    pages[page - 1].querySelector<HTMLElement>(`.gb-line[data-line="${line}"]`)!;
+  const takenOn = (page: number) =>
+    Array.from({ length: LINES_PER_PAGE }, (_, l) => !lineEl(page, l).classList.contains("gb-free"));
+  const updateLinesLeft = () => ($("#lines-left").textContent = String(book.querySelectorAll(".gb-free").length));
+  // A message needs at least two free lines in a row (one of note, one for the signature): a free line
+  // with less room below it can't be started on.
+  function markTight() {
+    pages.forEach((_, p) => {
+      const taken = takenOn(p + 1);
+      taken.forEach((isTaken, l) => !isTaken && lineEl(p + 1, l).classList.toggle("gb-tight", roomAt(taken, l) < 2));
+    });
+  }
+
+  // --- Writing ---
+  type Claim = { page: number; line: number; room: number };
+  let claim: Claim | null = null;
+  let lastGood = "";
+  const span = (text: string, className = "") => Object.assign(document.createElement("span"), { textContent: text, className });
+
+  // The name and country boxes grow with what's in them (an invisible copy of the text sets the width).
+  function sizeSignature() {
+    const [nameMirror, countryMirror] = compose.querySelectorAll(".gb-mirror");
+    nameMirror.textContent = nameField.value || nameField.placeholder;
+    countryMirror.textContent = countryField.selectedOptions[0]?.textContent ?? "";
+    countryField.classList.toggle("gb-empty", !countryField.value);
+  }
+
+  function render() {
+    if (!claim) return;
+    const lines = wrap(note.value);
+    const writing = document.activeElement === note;
+    rows.replaceChildren(
+      ...Array.from({ length: claim.room - 1 }, (_, i) => {
+        const row = document.createElement("div");
+        row.className = "gb-row";
+        if (lines[i]) row.append(span(lines[i]));
+        // The caret goes after the last word (on the first row while the note is empty).
+        if (writing && i === Math.max(0, lines.length - 1)) row.append(span("", "gb-caret"));
+        if (!note.value && i === 0) row.append(span("write your note…", "gb-placeholder"));
+        return row;
+      }),
+    );
+    signButton.disabled = !note.value.trim() || !nameField.value.trim();
+  }
+
+  function start(page: number, line: number) {
+    if (localStorage.getItem(SIGNED_KEY)) return;
+    const room = roomAt(takenOn(page), line);
+    if (room < 2) return;
+    cancel();
+    claim = { page, line, room };
+    const seed = page * 100 + line;
+    compose.className = `gb-compose hand-${(seed * 7) % 3}`;
+    compose.style.cssText = `--l: ${line}; --rows: ${room}; --ink: var(--ink-${seed % 3})`;
+    // Room for the buttons below the box, else they go above it.
+    compose.classList.toggle("gb-actions-above", line + room + 2 > LINES_PER_PAGE);
+    pages[page - 1].append(compose);
+    compose.hidden = false;
+    book.classList.add("gb-writing");
+    $("#gb-today").textContent = stampOf(new Date());
+    hint.textContent = `Up to ${room - 1} line${room === 2 ? "" : "s"} · Enter to sign · Esc to cancel`;
+    note.value = lastGood = "";
+    sizeSignature();
+    note.focus({ preventScroll: true });
+    render();
+  }
+
+  function cancel() {
+    if (!claim) return;
+    claim = null;
+    compose.hidden = true;
+    book.append(compose);
+    book.classList.remove("gb-writing");
+  }
+
+  book.addEventListener("click", (e) => {
+    const target = e.target as HTMLElement;
+    if (target.closest(".gb-compose")) {
+      // Clicking the note area (not the signature or buttons) puts the caret back in the note.
+      if (!target.closest("input, select, button")) note.focus({ preventScroll: true });
+      return;
+    }
+    const line = target.closest<HTMLElement>(".gb-free");
+    if (line) start(Number(line.dataset.page), Number(line.dataset.line));
+  });
+
+  // Keep only what fits the note rows (a long paste is cut to fit).
+  note.addEventListener("input", () => {
+    if (!claim) return;
+    let text = note.value.replace(/\n/g, " ");
+    const max = claim.room - 1; // the last claimed line is the signature's
+    if (wrap(text).length > max) {
+      if (!text.startsWith(lastGood)) text = lastGood;
+      while (text.length > lastGood.length && wrap(text).length > max) text = text.slice(0, -1);
+    }
+    note.value = lastGood = text;
+    render();
+  });
+  note.addEventListener("focus", render);
+  note.addEventListener("blur", render);
+  nameField.addEventListener("input", () => {
+    sizeSignature();
+    render();
+  });
+  countryField.addEventListener("change", sizeSignature);
+
+  // Enter signs (or goes to the name if it's missing); Esc cancels; Tab from the note goes to the name.
+  compose.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") return cancel();
+    if (e.key === "Enter" && e.target !== countryField) {
+      e.preventDefault();
+      if (!note.value.trim()) note.focus();
+      else if (!nameField.value.trim()) nameField.focus();
+      else compose.requestSubmit();
+    }
+    if (e.key === "Tab" && !e.shiftKey && e.target === note) {
+      e.preventDefault();
+      nameField.focus();
+    }
+  });
+  $("#gb-cancel").addEventListener("click", cancel);
+
+  // --- Signing (mockup: in this browser only) ---
+  function scribbleOver(page: number, line: number, lengths: number[]) {
+    lengths.forEach((chars, i) => {
+      const el = lineEl(page, line + i);
+      el.classList.remove("gb-free", "gb-tight");
+      el.removeAttribute("aria-label");
+      el.title = "Waiting for approval";
+      el.innerHTML = `<svg class="gb-scribble" viewBox="0 0 ${CHARS_PER_LINE * 9} 26" preserveAspectRatio="xMinYMid meet"><path d="${scribble(chars, (page * 100 + line) * 10 + i)}"/></svg>`;
+    });
+  }
+
+  compose.addEventListener("submit", (e) => {
+    e.preventDefault();
+    if (!claim || signButton.disabled) return;
+    const country = countryField.value ? countryName.of(countryField.value) : undefined;
+    // The message closes up: note lines, then the signature right below them.
+    const lengths = [...wrap(note.value), signatureOf(nameField.value, country)].map((text) => text.length);
+    const { page, line } = claim;
+    cancel();
+    scribbleOver(page, line, lengths);
+    localStorage.setItem(SIGNED_KEY, JSON.stringify({ page, line, lengths }));
+    book.classList.add("gb-done");
+    signedNote.hidden = false;
+    updateLinesLeft();
+  });
+
+  $("#gb-undo").addEventListener("click", () => {
+    localStorage.removeItem(SIGNED_KEY);
+    location.reload();
+  });
+
+  // Already signed in this browser: show the scribbles, and no more free lines to claim.
+  try {
+    const mine = JSON.parse(localStorage.getItem(SIGNED_KEY) ?? "null");
+    if (mine) {
+      scribbleOver(mine.page, mine.line, (mine.lengths as number[]).slice(0, MAX_LINES));
+      book.classList.add("gb-done");
+      signedNote.hidden = false;
+      first = mine.page - 1;
+      updateLinesLeft();
+    }
+  } catch {}
+  markTight();
+  show();
+</script>
+
+<!-- Global: the script creates some of these elements, and Astro's scoping would miss them. -->
+<style is:global>
+  /* --- The book ---
+     Everything inside is sized in page units (--u): a page is 480 × 732 units, whatever the screen,
+     so text lands on the same lines everywhere and just scales. */
+  :root[data-theme="dark"] {
+    --paper: #161614;
+    --rule: #2c2b28;
+    --ink-0: #e8e4dc;
+    --ink-1: #a9bde0;
+    --ink-2: #d9b68e;
+  }
+  :root[data-theme="light"] {
+    --paper: #fbfaf6;
+    --rule: #e4e0d6;
+    --ink-0: #23252a;
+    --ink-1: #24418c;
+    --ink-2: #7b4a22;
+  }
+  .gb-book {
+    position: relative;
+    container-type: inline-size;
+    width: 100%;
+    max-width: 1100px;
+    margin-inline: auto;
+  }
+  .gb-spread {
+    --u: calc(100cqw / 960);
+    display: flex;
+    justify-content: center;
+    filter: drop-shadow(0 calc(var(--u) * 10) calc(var(--u) * 24) rgb(0 0 0 / 0.18));
+  }
+  @media (width < 48rem) {
+    .gb-spread {
+      --u: calc(100cqw / 480);
+    }
+  }
+  .gb-page {
+    position: relative;
+    width: calc(var(--u) * 480);
+    height: calc(var(--u) * 732);
+    background: var(--paper);
+    border: 1px solid var(--line);
+  }
+  .gb-page[hidden] {
+    display: none;
+  }
+  /* The fold: a soft shadow where the two pages meet. */
+  .gb-page:nth-child(odd) {
+    background-image: linear-gradient(to left, rgb(0 0 0 / 0.14), transparent calc(var(--u) * 40));
+    border-right-width: 0;
+  }
+  .gb-page:nth-child(even) {
+    background-image: linear-gradient(to right, rgb(0 0 0 / 0.14), transparent calc(var(--u) * 40));
+  }
+  @media (width < 48rem) {
+    .gb-page {
+      border-right-width: 1px !important;
+    }
+  }
+  .gb-folio {
+    position: absolute;
+    bottom: calc(var(--u) * 18);
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-size: calc(var(--u) * 12);
+    letter-spacing: 0.08em;
+    color: var(--dim);
+  }
+
+  .gb-line {
+    position: absolute;
+    top: calc(var(--u) * (64 + var(--l) * 26));
+    left: calc(var(--u) * 40);
+    right: calc(var(--u) * 40);
+    height: calc(var(--u) * 26);
+    border-bottom: 1px solid var(--rule);
+    text-align: left;
+  }
+  /* A written line (on the page or in the composing box): handwriting sitting on the rule. */
+  .gb-line,
+  .gb-row {
+    display: flex;
+    align-items: flex-end;
+    padding: 0 0 0 calc(var(--u) * 4);
+    line-height: 1;
+    color: var(--ink, var(--fg));
+    white-space: pre;
+  }
+  /* Pulled down so the letters sit on the rule, with descenders hanging just below it like ink. */
+  :is(.gb-line, .gb-row) > span,
+  .gb-sigline {
+    white-space: pre;
+    transform: translateY(0.12em);
+  }
+  .gb-sig {
+    opacity: 0.85;
+  }
+  /* The date stamped at the right end of a signature line. */
+  .gb-stamp {
+    margin-left: auto;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: calc(var(--u) * 10);
+    letter-spacing: 0.1em;
+    color: var(--dim);
+  }
+  :is(.gb-line, .gb-row) > .gb-stamp {
+    transform: translateY(-0.35em);
+  }
+
+  /* Empty lines: a faint hint on hover, so the page reads as "pick a line". */
+  .gb-free {
+    cursor: text;
+  }
+  .gb-hint {
+    font-family: var(--font-ui);
+    font-size: calc(var(--u) * 11);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--dim);
+    opacity: 0;
+    transition: opacity 120ms;
+  }
+  .gb-free:hover .gb-hint,
+  .gb-free:focus-visible .gb-hint {
+    opacity: 1;
+  }
+  .gb-free:focus-visible {
+    outline: none;
+    background: color-mix(in srgb, var(--fg) 5%, transparent);
+  }
+  .gb-writing .gb-free,
+  .gb-done .gb-free,
+  .gb-free.gb-tight {
+    cursor: default;
+    pointer-events: none;
+  }
+  .gb-writing .gb-hint,
+  .gb-done .gb-hint,
+  .gb-tight .gb-hint {
+    display: none;
+  }
+
+  .gb-scribble {
+    height: calc(var(--u) * 22);
+    width: 100%;
+    overflow: visible;
+  }
+  .gb-scribble path {
+    fill: none;
+    stroke: var(--ink, var(--fg));
+    stroke-width: 1.3;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    opacity: 0.55;
+  }
+
+  /* Handwriting: each font sized so a full line (CHARS_PER_LINE characters) fits the 400-unit line. */
+  .hand-0 {
+    font-family: "Caveat", cursive;
+    font-weight: 500;
+    font-size: calc(var(--u) * 19.5);
+  }
+  .hand-1 {
+    font-family: "Kalam", cursive;
+    font-size: calc(var(--u) * 15.5);
+  }
+  .hand-2 {
+    font-family: "Nanum Pen Script", cursive;
+    font-size: calc(var(--u) * 22);
+  }
+
+  /* --- Composing box: laid over the claimed lines, slightly wider than them. --- */
+  .gb-compose {
+    position: absolute;
+    z-index: 2;
+    top: calc(var(--u) * (64 + var(--l) * 26) - var(--u) * 2);
+    left: calc(var(--u) * 32);
+    right: calc(var(--u) * 32);
+    height: calc(var(--u) * (var(--rows) * 26 + 6));
+    padding: calc(var(--u) * 2) calc(var(--u) * 8) 0;
+    border: 1px solid color-mix(in srgb, var(--fg) 12%, transparent);
+    border-radius: calc(var(--u) * 4);
+    background: color-mix(in srgb, var(--fg) 4%, transparent);
+    cursor: text;
+  }
+  .gb-compose[hidden] {
+    display: none;
+  }
+  .gb-compose .gb-row {
+    height: calc(var(--u) * 26);
+  }
+  .gb-placeholder {
+    opacity: 0.35;
+  }
+  .gb-caret {
+    display: inline-block;
+    width: max(1px, calc(var(--u) * 1.5));
+    height: 0.95em;
+    margin-left: 1px;
+    align-self: center;
+    background: currentColor;
+    animation: gb-blink 1s steps(1) infinite;
+  }
+  @keyframes gb-blink {
+    50% {
+      opacity: 0;
+    }
+  }
+  .gb-note {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    font-size: 16px;
+    resize: none;
+    pointer-events: none;
+  }
+
+  /* The signature row: "— [name], [country]" written in, the date on the right. */
+  .gb-sigline {
+    display: flex;
+    align-items: flex-end;
+    min-width: 0;
+  }
+  /* The box is as wide as its invisible copy of the text; the input lies on top of it. */
+  .gb-auto {
+    position: relative;
+    display: inline-block;
+    min-width: 0;
+  }
+  .gb-auto > * {
+    font: inherit;
+    color: inherit;
+    line-height: 1.15;
+  }
+  .gb-mirror {
+    display: block;
+    visibility: hidden;
+    white-space: pre;
+    padding-right: calc(var(--u) * 4);
+  }
+  .gb-auto :is(input, select) {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-bottom: 1px dashed color-mix(in srgb, var(--ink, var(--fg)) 45%, transparent);
+    border-radius: 0;
+    background: transparent;
+    appearance: none;
+    outline: none;
+    cursor: text;
+  }
+  .gb-auto select {
+    cursor: pointer;
+  }
+  .gb-auto :is(input, select):focus {
+    border-bottom-style: solid;
+    border-bottom-color: var(--ink, var(--fg));
+  }
+  .gb-auto input::placeholder,
+  .gb-auto select.gb-empty {
+    color: color-mix(in srgb, var(--ink, var(--fg)) 40%, transparent);
+    opacity: 1;
+  }
+  .gb-auto select option {
+    font-family: var(--font-ui);
+    font-size: 15px;
+    background: var(--bg);
+    color: var(--fg);
+  }
+
+  /* Hint, cancel and sign, just below the box (or above it near the bottom of the page). */
+  .gb-actions {
+    position: absolute;
+    top: calc(100% + var(--u) * 2);
+    left: 0;
+    right: 0;
+    display: flex;
+    align-items: center;
+    gap: max(12px, calc(var(--u) * 18));
+    padding: calc(var(--u) * 4) calc(var(--u) * 8);
+    border-radius: calc(var(--u) * 4);
+    background: var(--paper); /* covers whatever is written on the lines underneath */
+    font-family: var(--font-ui);
+    cursor: default;
+  }
+  .gb-actions-above .gb-actions {
+    top: auto;
+    bottom: calc(100% + var(--u) * 2);
+  }
+  .gb-actions-hint {
+    margin-right: auto;
+    white-space: nowrap;
+    font-size: max(10px, calc(var(--u) * 11.5));
+    color: var(--dim);
+  }
+  .gb-cancel,
+  .gb-sign {
+    height: max(32px, calc(var(--u) * 36));
+    font-size: max(11px, calc(var(--u) * 11.5));
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+  .gb-cancel {
+    margin-left: auto;
+    padding-inline: 4px;
+    color: var(--fg);
+  }
+  .gb-cancel:hover {
+    color: var(--strong);
+  }
+  .gb-sign {
+    padding-inline: max(18px, calc(var(--u) * 26));
+    background: var(--strong);
+    color: var(--bg);
+    transition: opacity 150ms;
+  }
+  .gb-sign:disabled {
+    background: color-mix(in srgb, var(--fg) 30%, transparent);
+    color: color-mix(in srgb, var(--bg) 70%, transparent);
+    cursor: not-allowed;
+  }
+  /* Small books (phones): just the buttons. */
+  @container (width < 560px) {
+    .gb-actions-hint {
+      display: none;
+    }
+  }
+
+  .gb-nav {
+    height: 2.75rem;
+    padding-inline: 0.5rem;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    transition: color 150ms;
+  }
+  .gb-nav:hover:not(:disabled) {
+    color: var(--strong);
+  }
+  .gb-nav:disabled {
+    opacity: 0.3;
+  }
+</style>

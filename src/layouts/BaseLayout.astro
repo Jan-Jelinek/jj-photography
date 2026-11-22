@@ -6,7 +6,7 @@ import "../styles/global.css";
 
 interface Props {
   title?: string;
-  current?: "home" | "collection" | "about" | "prints";
+  current?: "home" | "collection" | "about" | "prints" | "guestbook";
 }
 
 const { title = "Jan Jelinek Photography", current = "home" } = Astro.props;
@@ -23,6 +23,8 @@ const { title = "Jan Jelinek Photography", current = "home" } = Astro.props;
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;1,9..144,300&family=Inter:wght@400;500&display=swap" />
+  <!-- Extra tags for one page, e.g. <link slot="head" …>. -->
+  <slot name="head" />
 </Head>
 <body class="flex min-h-screen flex-col bg-bg font-ui text-fg antialiased transition-colors duration-300">
   <SiteHeader current={current} />

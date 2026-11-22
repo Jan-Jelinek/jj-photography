@@ -3,7 +3,7 @@ import BaseLayout from "../layouts/BaseLayout.astro";
 import { loadPhoto } from "../lib/photos";
 
 // The first photo of Silent Peak (Mount Qixing).
-const preview = await loadPhoto("DSCF0600.JPG", { dir: "src/collections/2025-qixing" });
+const preview = await loadPhoto("DSCF0696.JPG", { dir: "src/collections/2025-qixing" });
 ---
 
 <BaseLayout title="Prints — Jan Jelinek Photography" current="prints">
@@ -11,11 +11,15 @@ const preview = await loadPhoto("DSCF0600.JPG", { dir: "src/collections/2025-qix
     <div class="flex flex-col gap-6">
       <span class="text-[13px] tracking-[0.08em] text-dim uppercase">Prints</span>
       <h1 class="font-display text-[clamp(56px,8vw,112px)] leading-[0.95] font-light tracking-[-0.025em] text-strong">
-        <span class="text-muted">(not)</span><br /><em class="italic">Coming soon.</em>
+        <span class="block text-[0.5em] leading-none text-dim/40">(not)</span>Coming soon
       </h1>
       <div class="max-w-[440px] text-[17px] leading-relaxed text-pretty text-muted">
         <p class="pb-4">
-          A limited edition run will be printed on 5 grit sandpaper. One size option, frame not included.
+          A limited edition run will be printed on premium
+          5-grit, 180V, 360°, pure stainless steel tungsten cubes.<br/>
+        </p>
+        <p class="pb-4">
+          One size option, frame not included.
         </p>
         <p>
           You will be notified when the shop is live via cryptic symbolism in your dreams 🌞
@@ -38,8 +42,8 @@ const preview = await loadPhoto("DSCF0600.JPG", { dir: "src/collections/2025-qix
         </picture>
       </div>
       <figcaption class="flex justify-between gap-4 text-[13px] text-muted">
-        <span>Peak Weather, 01 — first edition</span>
-        <span class="text-dim">30000 cm x 42 m³ · $4.00 CAD</span>
+        <span>Peak Weather, 05 — first edition</span>
+        <span class="text-dim">30000 cm x 42 m³ x <span style="font-family: wingdings;">you</span> · $4.00 CAD</span>
       </figcaption>
     </figure>
   </section>

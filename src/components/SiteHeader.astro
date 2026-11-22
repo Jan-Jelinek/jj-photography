@@ -2,7 +2,7 @@
 import ThemeToggle from "./ThemeToggle.astro";
 
 interface Props {
-  current?: "home" | "collection" | "about" | "prints";
+  current?: "home" | "collection" | "about" | "prints" | "guestbook";
 }
 
 const { current } = Astro.props;
@@ -12,26 +12,30 @@ const links = [
   { href: "/#collections", label: "Collections", key: "collection" },
   { href: "/about", label: "About", key: "about" },
   { href: "/prints", label: "Prints", key: "prints" },
+  { href: "/guestbook", label: "Guestbook", key: "guestbook" },
 ];
 ---
 
-<header class="site-container flex flex-wrap items-center justify-between gap-x-4 gap-y-1 py-3 sm:py-4">
+<!-- Phones: logo and theme toggle on top, the links spread across their own row below.
+     From 768px: logo on the left, links and toggle on the right. -->
+<header class="site-container flex flex-wrap items-center justify-between gap-x-7 py-3 sm:py-4">
   <a href="/" class="font-display text-[22px] tracking-[0.01em] text-strong">Jan Jelinek</a>
-  <div class="flex items-center gap-4 sm:gap-7">
-    <nav aria-label="Primary" class="flex gap-4 text-[13px] tracking-[0.04em] uppercase sm:gap-8 sm:text-sm">
-      {links.map((link) => {
-        const active = link.key === current;
-        return (
-          <a
-            href={link.href}
-            aria-current={active ? (link.key === "collection" ? "true" : "page") : undefined}
-            class:list={["py-3 transition-colors hover:text-strong", active ? "text-strong" : "text-fg"]}
-          >
-            {link.label}
-          </a>
-        );
-      })}
-    </nav>
-    <ThemeToggle />
-  </div>
+  <nav
+    aria-label="Primary"
+    class="order-last flex w-full justify-between gap-3 text-[12px] tracking-[0.02em] uppercase 2xs:text-[13px] 2xs:tracking-[0.04em] md:order-none md:ml-auto md:w-auto md:justify-normal md:gap-8 md:text-sm"
+  >
+    {links.map((link) => {
+      const active = link.key === current;
+      return (
+        <a
+          href={link.href}
+          aria-current={active ? (link.key === "collection" ? "true" : "page") : undefined}
+          class:list={["py-3 transition-colors hover:text-strong", active ? "text-strong" : "text-fg"]}
+        >
+          {link.label}
+        </a>
+      );
+    })}
+  </nav>
+  <ThemeToggle />
 </header>
